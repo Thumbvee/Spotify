@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Liked Songs Manager</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0a; --surface: #111; --surface2: #1a1a1a; --border: #2a2a2a;
+    --green: #1DB954; --red: #e8445a; --red-dim: rgba(232,68,90,0.12);
+    --text: #f0f0f0; --muted: #666; --muted2: #444;
+    --mono: 'DM Mono', monospace; --sans: 'DM Sans', sans-serif;
+  }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); padding: 20px; }
+  #app { max-width: 800px; margin: 0 auto; }
+  .header { display: flex; align-items: center; gap: 10px; margin-bottom: 28px; }
+  .header h1 { font-family: var(--mono); font-size: 14px; font-weight: 500; letter-spacing: 0.05em; }
+  .panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 24px; margin-bottom: 16px; }
+  .panel-label { font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin-bottom: 16px; }
+  .field { margin-bottom: 12px; }
+  .field label { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  input[type="text"] { display: block; width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: var(--mono); font-size: 13px; padding: 10px 14px; outline: none; transition: border-color 0.2s; }
+  input[type="text"]:focus { border-color: var(--green); }
+  input[type="text"]::placeholder { color: var(--muted2); }
+  .btn { display: block; width: 100%; margin-top: 12px; cursor: pointer; border: none; border-radius: 5px; font-family: var(--mono); font-size: 13px; font-weight: 500; letter-spacing: 0.05em; padding: 12px 18px; transition: all 0.15s; text-align: center; }
+  .btn-green { background: var(--green); color: #000; }
+  .btn-green:hover { background: #1ed760; }
+  .btn-green:disabled { background: var(--muted2); color: var(--muted); cursor: not-allowed; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-red:hover { background: #ff5570; }
+  .btn-red:disabled { background: var(--muted2); color: var(--muted); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .btn-ghost:hover { border-color: var(--green); color: var(--green); }
+  .hint { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.7; }
+  .status-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted2); flex-shrink: 0; }
+  .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.red { background: var(--red); }
+  .dot.pulse { animation: pulse 1.2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.3} }
+  .error-box { background: var(--red-dim); border: 1px solid rgba(232,68,90,0.3); border-radius: 6px; padding: 12px 16px; margin-bottom: 16px; font-family: var(--mono); font-size: 11px; color: var(--red); line-height: 1.6; word-break: break-all; display: none; }
+  .error-box.visible { display: block; }
+  .progress-wrap { display: none; margin-bottom: 16px; }
+  .progress-wrap.visible { display: block; }
+  .progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--green); border-radius: 2px; transition: width 0.3s; width: 0%; }
+  .progress-label { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .filters { display: none; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+  .filters.visible { display: flex; }
+  select { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 9px 12px; outline: none; }
+  .songs-header { display: none; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
+  .songs-header.visible { display: flex; }
+  .songs-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .songs-count span { color: var(--text); }
+  .bulk-actions { display: flex; gap: 6px; }
+  .bulk-actions .btn { width: auto; display: inline-block; padding: 7px 12px; font-size: 11px; margin-top: 0; }
+  .song-list { display: none; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; margin-bottom: 12px; }
+  .song-list.visible { display: flex; }
+  .song-list::-webkit-scrollbar { width: 4px; }
+  .song-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .song-item { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 5px; cursor: pointer; border: 1px solid transparent; transition: background 0.1s; }
+  .song-item:hover { background: var(--surface2); }
+  .song-item.selected { background: var(--red-dim); border-color: rgba(232,68,90,0.2); }
+  .song-check { width: 16px; height: 16px; border: 1.5px solid var(--muted2); border-radius: 3px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+  .song-item.selected .song-check { background: var(--red); border-color: var(--red); }
+  .song-check::after { content: ''; width: 8px; height: 5px; border-left: 1.5px solid #fff; border-bottom: 1.5px solid #fff; transform: rotate(-45deg) translateY(-1px); display: none; }
+  .song-item.selected .song-check::after { display: block; }
+  .song-info { flex: 1; min-width: 0; }
+  .song-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .song-artist { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+  .song-date { font-family: var(--mono); font-size: 11px; color: var(--muted2); flex-shrink: 0; }
+  .confirm-bar { display: none; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--red-dim); border: 1px solid rgba(232,68,90,0.25); border-radius: 6px; gap: 12px; flex-wrap: wrap; }
+  .confirm-bar.visible { display: flex; }
+  .confirm-text { font-family: var(--mono); font-size: 12px; color: var(--red); }
+  .confirm-btns { display: flex; gap: 8px; }
+  .confirm-btns .btn { width: auto; display: inline-block; padding: 8px 14px; margin-top: 0; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div class="header">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="11" fill="#1DB954"/>
+      <path d="M17 8.5C14.5 7.2 10.5 7 7.5 8.2M16 11.5C14 10.5 10.5 10.3 8 11.3M14.5 14.5C13 13.8 10.5 13.6 8.5 14.3" stroke="#000" stroke-width="1.5" stroke-linecap="round"/>
+    </svg>
+    <h1>liked songs manager</h1>
+  </div>
+
+  <div class="panel" id="setup-panel">
+    <div class="panel-label">Connect your Spotify</div>
+    <div class="field">
+      <label>Client ID</label>
+      <input type="text" id="client-id-input" placeholder="paste from developer.spotify.com → your app → Settings" />
+    </div>
+    <button class="btn btn-green" onclick="startAuth()">Connect to Spotify</button>
+  </div>
+
+  <div class="status-bar">
+    <div class="dot" id="status-dot"></div>
+    <span id="status-text">waiting for connection...</span>
+  </div>
+
+  <div class="error-box" id="error-box"></div>
+
+  <div class="progress-wrap" id="progress-wrap">
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="progress-label" id="progress-label"></div>
+  </div>
+
+  <div class="filters" id="filters">
+    <input type="text" id="search-input" placeholder="search by song or artist..." oninput="applyFilters()" />
+    <select id="year-filter" onchange="applyFilters()"><option value="">all years</option></select>
+    <select id="sort-select" onchange="applyFilters()">
+      <option value="newest">newest first</option>
+      <option value="oldest">oldest first</option>
+      <option value="artist">by artist A–Z</option>
+    </select>
+  </div>
+
+  <div class="songs-header" id="songs-header">
+    <div class="songs-count">showing <span id="showing-count">0</span> of <span id="total-count">0</span> — <span id="selected-count">0</span> selected</div>
+    <div class="bulk-actions">
+      <button class="btn btn-ghost" onclick="selectAll()">select all visible</button>
+      <button class="btn btn-ghost" onclick="clearSelection()">clear</button>
+    </div>
+  </div>
+
+  <div class="song-list" id="song-list"></div>
+
+  <div class="confirm-bar" id="confirm-bar">
+    <span class="confirm-text" id="confirm-text">unlike 0 songs?</span>
+    <div class="confirm-btns">
+      <button class="btn btn-ghost" onclick="clearSelection()">cancel</button>
+      <button class="btn btn-red" id="unlike-btn" onclick="unlikeSelected()">unlike selected</button>
+    </div>
+  </div>
+
+</div>
+<script>
+  // Change this to match whatever redirect URI you set in Spotify dashboard
+  const REDIRECT_URI = 'https://thumbvee.github.io/spotify';
+  const SCOPES = 'user-library-read user-library-modify';
+  let accessToken = null, allSongs = [], filteredSongs = [], selected = new Set();
+
+  function generateCodeVerifier() {
+    const a = new Uint8Array(64); crypto.getRandomValues(a);
+    return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  }
+  async function generateCodeChallenge(v) {
+    const d = new TextEncoder().encode(v);
+    const h = await crypto.subtle.digest('SHA-256', d);
+    return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+  }
+
+  async function startAuth() {
+    const clientId = document.getElementById('client-id-input').value.trim();
+    if (!clientId) { setStatus('paste your Client ID first', false); return; }
+    const verifier = generateCodeVerifier();
+    const challenge = await generateCodeChallenge(verifier);
+    sessionStorage.setItem('pkce_verifier', verifier);
+    sessionStorage.setItem('spotify_client_id', clientId);
+    const params = new URLSearchParams({ client_id: clientId, response_type: 'code', redirect_uri: REDIRECT_URI, scope: SCOPES, code_challenge_method: 'S256', code_challenge: challenge });
+    window.location.href = `https://accounts.spotify.com/authorize?${params}`;
+  }
+
+  async function handleCallback() {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
+    if (!code) return;
+
+    // Clean up URL
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    const verifier = sessionStorage.getItem('pkce_verifier');
+    const clientId = sessionStorage.getItem('spotify_client_id');
+    if (!verifier || !clientId) { showError('Session expired — please refresh and try again'); return; }
+
+    document.getElementById('setup-panel').classList.add('hidden');
+    setStatus('exchanging token...', true);
+
+    try {
+      const res = await fetch('https://accounts.spotify.com/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: REDIRECT_URI, client_id: clientId, code_verifier: verifier })
+      });
+      const data = await res.json();
+      if (data.access_token) {
+        accessToken = data.access_token;
+        setStatus('connected — loading your liked songs...', true);
+        await loadAllSongs();
+      } else {
+        showError('Auth failed: ' + JSON.stringify(data));
+        setStatus('auth failed', false);
+      }
+    } catch(e) {
+      showError('Network error: ' + e.message);
+      setStatus('failed', false);
+    }
+  }
+
+  async function loadAllSongs() {
+    document.getElementById('progress-wrap').classList.add('visible');
+    let url = 'https://api.spotify.com/v1/me/tracks?limit=50&offset=0';
+    allSongs = [];
+    try {
+      while (url) {
+        const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+        const data = await res.json();
+        if (data.error) { showError('API error: ' + JSON.stringify(data.error)); break; }
+        if (!data.items) break;
+        data.items.forEach(item => {
+          if (!item.track) return;
+          allSongs.push({ id: item.track.id, name: item.track.name, artist: item.track.artists.map(a=>a.name).join(', '), added: item.added_at, year: new Date(item.added_at).getFullYear() });
+        });
+        const pct = data.total ? Math.round((allSongs.length/data.total)*100) : 0;
+        document.getElementById('progress-fill').style.width = pct+'%';
+        document.getElementById('progress-label').textContent = `loading... ${allSongs.length} / ${data.total}`;
+        document.getElementById('total-count').textContent = data.total;
+        url = data.next;
+      }
+    } catch(e) { showError('Error loading songs: ' + e.message); }
+    document.getElementById('progress-wrap').classList.remove('visible');
+    if (allSongs.length > 0) {
+      setStatus(`loaded ${allSongs.length} liked songs`, true);
+      buildYearFilter(); applyFilters();
+      document.getElementById('filters').classList.add('visible');
+      document.getElementById('songs-header').classList.add('visible');
+      document.getElementById('song-list').classList.add('visible');
+    } else {
+      setStatus('no songs loaded', false);
+    }
+  }
+
+  function buildYearFilter() {
+    const years = [...new Set(allSongs.map(s=>s.year))].sort((a,b)=>b-a);
+    const sel = document.getElementById('year-filter');
+    years.forEach(y => { const o = document.createElement('option'); o.value=y; o.textContent=y; sel.appendChild(o); });
+  }
+
+  function applyFilters() {
+    const q = document.getElementById('search-input').value.toLowerCase();
+    const yr = document.getElementById('year-filter').value;
+    const sort = document.getElementById('sort-select').value;
+    filteredSongs = allSongs.filter(s => (!q || s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)) && (!yr || s.year==yr));
+    if (sort==='oldest') filteredSongs.sort((a,b)=>new Date(a.added)-new Date(b.added));
+    else if (sort==='artist') filteredSongs.sort((a,b)=>a.artist.localeCompare(b.artist));
+    else filteredSongs.sort((a,b)=>new Date(b.added)-new Date(a.added));
+    renderList();
+  }
+
+  function renderList() {
+    const list = document.getElementById('song-list');
+    list.innerHTML = '';
+    document.getElementById('showing-count').textContent = filteredSongs.length;
+    filteredSongs.forEach(song => {
+      const div = document.createElement('div');
+      div.className = 'song-item'+(selected.has(song.id)?' selected':'');
+      div.onclick = () => toggleSong(song.id);
+      div.innerHTML = `<div class="song-check"></div><div class="song-info"><div class="song-name">${esc(song.name)}</div><div class="song-artist">${esc(song.artist)}</div></div><div class="song-date">${song.year}</div>`;
+      list.appendChild(div);
+    });
+    updateSelectionUI();
+  }
+
+  function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+  function toggleSong(id) { selected.has(id)?selected.delete(id):selected.add(id); renderList(); }
+  function selectAll() { filteredSongs.forEach(s=>selected.add(s.id)); renderList(); }
+  function clearSelection() { selected.clear(); renderList(); }
+
+  function updateSelectionUI() {
+    document.getElementById('selected-count').textContent = selected.size;
+    const bar = document.getElementById('confirm-bar');
+    if (selected.size > 0) { bar.classList.add('visible'); document.getElementById('confirm-text').textContent = `unlike ${selected.size} song${selected.size!==1?'s':''}?`; }
+    else bar.classList.remove('visible');
+  }
+
+  async function unlikeSelected() {
+    const ids = [...selected];
+    const btn = document.getElementById('unlike-btn');
+    btn.disabled = true; btn.textContent = 'unliking...';
+    for (let i = 0; i < ids.length; i += 50) {
+      const batch = ids.slice(i, i+50);
+      await fetch('https://api.spotify.com/v1/me/tracks?ids='+batch.join(','), { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
+      setStatus(`unliked ${Math.min(i+50,ids.length)} / ${ids.length}...`, true);
+    }
+    const removedSet = new Set(ids);
+    allSongs = allSongs.filter(s=>!removedSet.has(s.id));
+    selected.clear(); btn.disabled=false; btn.textContent='unlike selected';
+    setStatus(`done — ${allSongs.length} liked songs remaining`, true);
+    applyFilters();
+  }
+
+  function setStatus(msg, active) {
+    document.getElementById('status-text').textContent = msg;
+    document.getElementById('status-dot').className = 'dot'+(active?' green pulse':' red');
+  }
+  function showError(msg) { const b = document.getElementById('error-box'); b.textContent=msg; b.classList.add('visible'); }
+
+  // On page load, check if we're handling a callback
+  handleCallback();
+</script>
+</body>
+</html>
