@@ -33,7 +33,6 @@
   .btn-red:disabled { background: var(--muted2); color: var(--muted); cursor: not-allowed; }
   .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
   .btn-ghost:hover { border-color: var(--green); color: var(--green); }
-  .hint { font-family: var(--mono); font-size: 11px; color: var(--muted); line-height: 1.7; }
   .status-bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
   .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted2); flex-shrink: 0; }
   .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
@@ -49,7 +48,8 @@
   .progress-label { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; }
   .filters { display: none; flex-direction: column; gap: 8px; margin-bottom: 12px; }
   .filters.visible { display: flex; }
-  select { width: 100%; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 9px 12px; outline: none; }
+  .filter-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  select { flex: 1; min-width: 100px; background: var(--surface); border: 1px solid var(--border); border-radius: 5px; color: var(--text); font-family: var(--mono); font-size: 12px; padding: 9px 12px; outline: none; }
   .songs-header { display: none; align-items: center; justify-content: space-between; margin-bottom: 10px; flex-wrap: wrap; gap: 8px; }
   .songs-header.visible { display: flex; }
   .songs-count { font-family: var(--mono); font-size: 12px; color: var(--muted); }
@@ -71,7 +71,7 @@
   .song-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .song-artist { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
   .song-date { font-family: var(--mono); font-size: 11px; color: var(--muted2); flex-shrink: 0; }
-  .confirm-bar { display: none; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--red-dim); border: 1px solid rgba(232,68,90,0.25); border-radius: 6px; gap: 12px; flex-wrap: wrap; }
+  .confirm-bar { display: none; align-items: center; justify-content: space-between; padding: 14px 16px; background: var(--red-dim); border: 1px solid rgba(232,68,90,0.25); border-radius: 6px; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
   .confirm-bar.visible { display: flex; }
   .confirm-text { font-family: var(--mono); font-size: 12px; color: var(--red); }
   .confirm-btns { display: flex; gap: 8px; }
@@ -113,12 +113,15 @@
 
   <div class="filters" id="filters">
     <input type="text" id="search-input" placeholder="search by song or artist..." oninput="applyFilters()" />
-    <select id="year-filter" onchange="applyFilters()"><option value="">all years</option></select>
-    <select id="sort-select" onchange="applyFilters()">
-      <option value="newest">newest first</option>
-      <option value="oldest">oldest first</option>
-      <option value="artist">by artist A–Z</option>
-    </select>
+    <div class="filter-row">
+      <select id="year-filter" onchange="onYearChange()"><option value="">all years</option></select>
+      <select id="month-filter" onchange="applyFilters()"><option value="">all months</option></select>
+      <select id="sort-select" onchange="applyFilters()">
+        <option value="newest">newest first</option>
+        <option value="oldest">oldest first</option>
+        <option value="artist">by artist A–Z</option>
+      </select>
+    </div>
   </div>
 
   <div class="songs-header" id="songs-header">
@@ -141,9 +144,9 @@
 
 </div>
 <script>
-  // Change this to match whatever redirect URI you set in Spotify dashboard
   const REDIRECT_URI = 'https://thumbvee.github.io/Spotify/';
   const SCOPES = 'user-library-read user-library-modify';
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   let accessToken = null, allSongs = [], filteredSongs = [], selected = new Set();
 
   function generateCodeVerifier() {
@@ -171,17 +174,12 @@
     const params = new URLSearchParams(window.location.search);
     const code = params.get('code');
     if (!code) return;
-
-    // Clean up URL
     window.history.replaceState({}, document.title, window.location.pathname);
-
     const verifier = sessionStorage.getItem('pkce_verifier');
     const clientId = sessionStorage.getItem('spotify_client_id');
     if (!verifier || !clientId) { showError('Session expired — please refresh and try again'); return; }
-
     document.getElementById('setup-panel').classList.add('hidden');
     setStatus('exchanging token...', true);
-
     try {
       const res = await fetch('https://accounts.spotify.com/api/token', {
         method: 'POST',
@@ -196,10 +194,12 @@
       } else {
         showError('Auth failed: ' + JSON.stringify(data));
         setStatus('auth failed', false);
+        document.getElementById('setup-panel').classList.remove('hidden');
       }
     } catch(e) {
       showError('Network error: ' + e.message);
       setStatus('failed', false);
+      document.getElementById('setup-panel').classList.remove('hidden');
     }
   }
 
@@ -215,7 +215,8 @@
         if (!data.items) break;
         data.items.forEach(item => {
           if (!item.track) return;
-          allSongs.push({ id: item.track.id, name: item.track.name, artist: item.track.artists.map(a=>a.name).join(', '), added: item.added_at, year: new Date(item.added_at).getFullYear() });
+          const d = new Date(item.added_at);
+          allSongs.push({ id: item.track.id, name: item.track.name, artist: item.track.artists.map(a=>a.name).join(', '), added: item.added_at, year: d.getFullYear(), month: d.getMonth() });
         });
         const pct = data.total ? Math.round((allSongs.length/data.total)*100) : 0;
         document.getElementById('progress-fill').style.width = pct+'%';
@@ -239,14 +240,32 @@
   function buildYearFilter() {
     const years = [...new Set(allSongs.map(s=>s.year))].sort((a,b)=>b-a);
     const sel = document.getElementById('year-filter');
+    sel.innerHTML = '<option value="">all years</option>';
     years.forEach(y => { const o = document.createElement('option'); o.value=y; o.textContent=y; sel.appendChild(o); });
+  }
+
+  function onYearChange() {
+    const yr = document.getElementById('year-filter').value;
+    const sel = document.getElementById('month-filter');
+    sel.innerHTML = '<option value="">all months</option>';
+    if (yr) {
+      const months = [...new Set(allSongs.filter(s=>s.year==yr).map(s=>s.month))].sort((a,b)=>a-b);
+      months.forEach(m => { const o = document.createElement('option'); o.value=m; o.textContent=MONTH_NAMES[m]; sel.appendChild(o); });
+    }
+    applyFilters();
   }
 
   function applyFilters() {
     const q = document.getElementById('search-input').value.toLowerCase();
     const yr = document.getElementById('year-filter').value;
+    const mo = document.getElementById('month-filter').value;
     const sort = document.getElementById('sort-select').value;
-    filteredSongs = allSongs.filter(s => (!q || s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q)) && (!yr || s.year==yr));
+    filteredSongs = allSongs.filter(s => {
+      const matchQ = !q || s.name.toLowerCase().includes(q) || s.artist.toLowerCase().includes(q);
+      const matchY = !yr || s.year == yr;
+      const matchM = mo === '' || s.month == mo;
+      return matchQ && matchY && matchM;
+    });
     if (sort==='oldest') filteredSongs.sort((a,b)=>new Date(a.added)-new Date(b.added));
     else if (sort==='artist') filteredSongs.sort((a,b)=>a.artist.localeCompare(b.artist));
     else filteredSongs.sort((a,b)=>new Date(b.added)-new Date(a.added));
@@ -261,7 +280,8 @@
       const div = document.createElement('div');
       div.className = 'song-item'+(selected.has(song.id)?' selected':'');
       div.onclick = () => toggleSong(song.id);
-      div.innerHTML = `<div class="song-check"></div><div class="song-info"><div class="song-name">${esc(song.name)}</div><div class="song-artist">${esc(song.artist)}</div></div><div class="song-date">${song.year}</div>`;
+      const dateStr = MONTH_NAMES[song.month] + ' ' + song.year;
+      div.innerHTML = `<div class="song-check"></div><div class="song-info"><div class="song-name">${esc(song.name)}</div><div class="song-artist">${esc(song.artist)}</div></div><div class="song-date">${dateStr}</div>`;
       list.appendChild(div);
     });
     updateSelectionUI();
@@ -283,14 +303,34 @@
     const ids = [...selected];
     const btn = document.getElementById('unlike-btn');
     btn.disabled = true; btn.textContent = 'unliking...';
+    let successCount = 0;
+
     for (let i = 0; i < ids.length; i += 50) {
       const batch = ids.slice(i, i+50);
-      await fetch('https://api.spotify.com/v1/me/tracks?ids='+batch.join(','), { method: 'DELETE', headers: { Authorization: `Bearer ${accessToken}` } });
-      setStatus(`unliked ${Math.min(i+50,ids.length)} / ${ids.length}...`, true);
+      try {
+        const res = await fetch('https://api.spotify.com/v1/me/tracks?ids='+batch.join(','), {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (res.ok) {
+          successCount += batch.length;
+          // Remove from allSongs as we go so progress is real
+          const batchSet = new Set(batch);
+          allSongs = allSongs.filter(s=>!batchSet.has(s.id));
+        } else {
+          const err = await res.json().catch(()=>({}));
+          showError('Delete failed: ' + JSON.stringify(err) + ' — token may have expired, refresh and reconnect');
+          break;
+        }
+      } catch(e) {
+        showError('Network error: ' + e.message);
+        break;
+      }
+      setStatus(`unliked ${successCount} / ${ids.length}...`, true);
     }
-    const removedSet = new Set(ids);
-    allSongs = allSongs.filter(s=>!removedSet.has(s.id));
-    selected.clear(); btn.disabled=false; btn.textContent='unlike selected';
+
+    selected.clear();
+    btn.disabled=false; btn.textContent='unlike selected';
     setStatus(`done — ${allSongs.length} liked songs remaining`, true);
     applyFilters();
   }
@@ -301,7 +341,6 @@
   }
   function showError(msg) { const b = document.getElementById('error-box'); b.textContent=msg; b.classList.add('visible'); }
 
-  // On page load, check if we're handling a callback
   handleCallback();
 </script>
 </body>
